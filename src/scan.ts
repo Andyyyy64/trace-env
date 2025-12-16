@@ -1,6 +1,7 @@
 import { glob } from 'glob';
 import * as fs from 'fs';
 import chalk from 'chalk';
+import * as ts from 'typescript';
 
 interface ScanOptions {
     debug?: boolean;
@@ -23,48 +24,83 @@ export async function scanDirectory(dir: string, options: ScanOptions = {}): Pro
         try {
             const content = fs.readFileSync(file, 'utf-8');
 
-            // 1. Direct access: process.env.VAR
-            const directRegex = /process\.env\.([A-Z_0-9]+)/g;
-            let match;
-            while ((match = directRegex.exec(content)) !== null) {
-                vars.add(match[1]);
-            }
+            // Use TypeScript Compiler API to parse the file
+            const sourceFile = ts.createSourceFile(
+                file,
+                content,
+                ts.ScriptTarget.Latest,
+                true // setParentNodes
+            );
 
-            // 2. Bracket notation: process.env['VAR'] or process.env["VAR"]
-            const bracketRegex = /process\.env\[['"]([A-Z_0-9]+)['"]\]/g;
-            while ((match = bracketRegex.exec(content)) !== null) {
-                vars.add(match[1]);
-            }
+            visit(sourceFile);
 
-            // 3. Destructuring: const { VAR, VAR2 } = process.env
-            // Note: This is a simple regex and might fail on nested or complex destructuring
-            const destructureRegex = /(?:const|let|var)\s+\{([\s\S]*?)\}\s*=\s*process\.env/g;
-            while ((match = destructureRegex.exec(content)) !== null) {
-                const destructured = match[1];
-                // Remove comments if any (simple approach) or just split
-                const parts = destructured.split(',').map(s => s.trim());
-                for (const part of parts) {
-                    // Handle renaming: const { OLD: NEW } = ... -> We care about OLD (the key in env)
-                    // part is like "VAR" or "VAR: localVal" or "VAR = 'default'"
-
-                    // Clean up assignments or renaming
-                    // 1. Remove default values: VAR = 'foo' -> VAR
-                    let key = part.split('=')[0].trim();
-                    // 2. Remove renaming: VAR: localVal -> VAR
-                    key = key.split(':')[0].trim();
-
-                    // Simple validation: strictly uppercase to avoid noise?
-                    // User env vars are usually uppercase, but not strictly.
-                    // However, destructuring usually matches the key.
-                    if (/^[A-Z_0-9]+$/.test(key)) {
-                        vars.add(key);
+            function visit(node: ts.Node) {
+                // 1. Check for Property Access: process.env.VAR
+                if (ts.isPropertyAccessExpression(node)) {
+                    if (
+                        ts.isPropertyAccessExpression(node.expression) &&
+                        node.expression.expression.getText() === 'process' &&
+                        node.expression.name.getText() === 'env'
+                    ) {
+                        const envVarName = node.name.getText();
+                        vars.add(envVarName);
                     }
                 }
+
+                // 2. Check for Element Access: process.env['VAR']
+                if (ts.isElementAccessExpression(node)) {
+                    if (
+                        ts.isPropertyAccessExpression(node.expression) &&
+                        node.expression.expression.getText() === 'process' &&
+                        node.expression.name.getText() === 'env'
+                    ) {
+                        if (ts.isStringLiteral(node.argumentExpression)) {
+                            const envVarName = node.argumentExpression.text;
+                            vars.add(envVarName);
+                        }
+                    }
+                }
+
+                // 3. Check for Destructuring: const { VAR } = process.env
+                if (ts.isVariableDeclaration(node)) {
+                    if (
+                        node.initializer &&
+                        ts.isPropertyAccessExpression(node.initializer) &&
+                        node.initializer.expression.getText() === 'process' &&
+                        node.initializer.name.getText() === 'env'
+                    ) {
+                        if (ts.isObjectBindingPattern(node.name)) {
+                            node.name.elements.forEach((element) => {
+                                if (ts.isBindingElement(element)) {
+                                    // Handle renamed vars: const { OLD: NEW } = process.env
+                                    let envVarName: string | undefined;
+
+                                    // element.propertyName is the property on the object (process.env key)
+                                    // element.name is the variable name
+
+                                    if (element.propertyName && ts.isIdentifier(element.propertyName)) {
+                                        envVarName = element.propertyName.text;
+                                    } else if (ts.isIdentifier(element.name)) {
+                                        envVarName = element.name.text;
+                                    }
+
+                                    // Note: If using default values like { VAR = 'default' }, element.name is still the identifier
+
+                                    if (envVarName) {
+                                        vars.add(envVarName);
+                                    }
+                                }
+                            });
+                        }
+                    }
+                }
+
+                ts.forEachChild(node, visit);
             }
 
         } catch (err) {
             if (options.debug) {
-                console.warn(chalk.yellow(`Could not read file ${file}: ${err}`));
+                console.warn(chalk.yellow(`Could not process file ${file}: ${err}`));
             }
         }
     }
