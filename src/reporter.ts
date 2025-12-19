@@ -44,3 +44,28 @@ export function generateExampleFile(targetDir: string, usedVars: Set<string>): v
     fs.writeFileSync(examplePath, exampleContent);
     console.log(chalk.green(`\nGenerated .env.example at ${examplePath}`));
 }
+
+/**
+ * CI環境向けのバリデーションを実行
+ */
+export function validateForCI(usedVars: Set<string>, exampleVars: Set<string>): boolean {
+    let hasError = false;
+
+    // 1. コードで使われているが .env.example にない変数をチェック
+    const missingInExample = Array.from(usedVars).filter(v => !exampleVars.has(v)).sort();
+    if (missingInExample.length > 0) {
+        console.error(chalk.red('\nError: The following environment variables are used in code but missing in .env.example:'));
+        missingInExample.forEach(v => console.error(chalk.red(`  - ${v}`)));
+        hasError = true;
+    }
+
+    // 2. .env.example にあるがコードで使われていない変数をチェック（負債）
+    const unusedInExample = Array.from(exampleVars).filter(v => !usedVars.has(v)).sort();
+    if (unusedInExample.length > 0) {
+        console.error(chalk.red('\nError: The following environment variables are defined in .env.example but not used in code:'));
+        unusedInExample.forEach(v => console.error(chalk.red(`  - ${v}`)));
+        hasError = true;
+    }
+
+    return hasError;
+}

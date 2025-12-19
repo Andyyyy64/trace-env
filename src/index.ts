@@ -16,6 +16,7 @@ program
     .version('1.0.0')
     .argument('[path]', 'path to scan', '.')
     .option('-g, --generate', 'Generate .env.example file')
+    .option('--ci', 'Run in CI mode (fails if unused or missing variables are found in .env.example)')
     .option('--debug', 'Enable debug output')
     .action(async (directory, options) => {
         try {
@@ -31,23 +32,41 @@ program
 
             const envVars = await scanDirectory(targetDir, { debug: options.debug });
 
-            // .env ファイルの読み込みと定義済み変数の抽出
+            // .env ファイルの読み込み（ローカル実行用）
             const envPath = path.join(targetDir, '.env');
-            let definedEnvVars: Set<string> = new Set();
+            let definedInEnv: Set<string> = new Set();
 
             if (fs.existsSync(envPath)) {
                 const envConfig = dotenv.parse(fs.readFileSync(envPath));
-                definedEnvVars = new Set(Object.keys(envConfig));
-            } else if (options.debug) {
-                console.log(chalk.gray(`No .env file found at ${envPath}`));
+                definedInEnv = new Set(Object.keys(envConfig));
             }
 
-            // 結果の表示
-            reportResults(envVars, definedEnvVars);
+            // .env.example ファイルの読み込み（CI検証用）
+            const examplePath = path.join(targetDir, '.env.example');
+            let definedInExample: Set<string> = new Set();
+            if (fs.existsSync(examplePath)) {
+                const exampleConfig = dotenv.parse(fs.readFileSync(examplePath));
+                definedInExample = new Set(Object.keys(exampleConfig));
+            }
+
+            // 通常の結果表示
+            if (!options.ci) {
+                reportResults(envVars, definedInEnv);
+            }
 
             // .env.example の生成
             if (options.generate) {
                 generateExampleFile(targetDir, envVars);
+            }
+
+            // CIモードの検証
+            if (options.ci) {
+                const { validateForCI } = await import('./reporter');
+                const hasError = validateForCI(envVars, definedInExample);
+                if (hasError) {
+                    process.exit(1);
+                }
+                console.log(chalk.green('\nCI check passed! All environment variables are synchronized.'));
             }
 
         } catch (error) {
