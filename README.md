@@ -34,6 +34,31 @@ Unused env vars (in .env but not in code):
 - `✗`: Variable is used in code BUT NOT defined in `.env`.
 - **Unused env vars**: Variables defined in `.env` but not found in your code. **Delete them!**
 
+### CI Integration
+
+You can use the `--ci` flag to fail the build if there are unused variables in `.env.example` or if any variables used in code are missing from `.env.example`.
+
+```bash
+trace-env . --ci
+```
+
+Example GitHub Actions step:
+
+```yaml
+- name: Trace Env Check
+  run: npx trace-env . --ci
+```
+
+### Ignore Patterns
+
+Exclude specific files or directories from scanning using the `-i` or `--ignore` flag. You can specify multiple patterns or use a comma-separated list.
+
+```bash
+trace-env . -i "**/tests/**,**/legacy/**"
+# or
+trace-env . -i src/dispatcher.ts -i tests/
+```
+
 ### Generate .env.example
 
 You can automatically generate a `.env.example` file based on the declarations found in your code:
@@ -47,13 +72,15 @@ This will create `.env.example` in the scanned directory if it doesn't exist.
 ## Features
 
 - **AST-based Scanning**: Accurate detection using TypeScript parser to avoid false positives (comments, strings, etc).
-- **Unused Variable Detection**: Compares your code usage against `.env` file to find dead configuration.
+- **Vite & Next.js Support**: Works with both `process.env` and `import.meta.env`.
+- **Unused Variable Detection**: Compares your code usage against `.env` and `.env.example` files to find dead configuration.
+- **CI Ready**: Integrated validation for automated environments.
 - **Pattern Support**:
   - `process.env.VAR`
   - `process.env['VAR']`
   - `const { VAR } = process.env`
-  - `import.meta.env.VITE_VAR` (Vite support)
+  - `import.meta.env.VITE_VAR`
   - `import.meta.env['VITE_VAR']`
   - `const { VITE_VAR } = import.meta.env`
 - **File Support**: Scans `.js`, `.ts`, `.jsx`, `.tsx`, `.mjs`, `.cjs`.
-- **Ignore**: Automatically ignores `node_modules` and other build artifacts.
+- **Smart Ignore**: Automatically ignores `node_modules`, `dist`, `build`, and `.git`, plus custom patterns.
