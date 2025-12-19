@@ -52,5 +52,8 @@ This will create `.env.example` in the scanned directory if it doesn't exist.
   - `process.env.VAR`
   - `process.env['VAR']`
   - `const { VAR } = process.env`
+  - `import.meta.env.VITE_VAR` (Vite support)
+  - `import.meta.env['VITE_VAR']`
+  - `const { VITE_VAR } = import.meta.env`
 - **File Support**: Scans `.js`, `.ts`, `.jsx`, `.tsx`, `.mjs`, `.cjs`.
 - **Ignore**: Automatically ignores `node_modules` and other build artifacts.

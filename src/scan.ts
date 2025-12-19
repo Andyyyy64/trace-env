@@ -34,26 +34,42 @@ export async function scanDirectory(dir: string, options: ScanOptions = {}): Pro
 
             visit(sourceFile);
 
+            /**
+             * ノードが環境変数オブジェクト (process.env または import.meta.env) かどうかを判定します
+             */
+            function isEnvObject(node: ts.Node): boolean {
+                if (!ts.isPropertyAccessExpression(node)) return false;
+
+                // process.env のチェック
+                if (node.expression.getText() === 'process' && node.name.text === 'env') {
+                    return true;
+                }
+
+                // import.meta.env のチェック (Viteなど)
+                if (
+                    ts.isMetaProperty(node.expression) &&
+                    node.expression.keywordToken === ts.SyntaxKind.ImportKeyword &&
+                    node.expression.name.text === 'meta' &&
+                    node.name.text === 'env'
+                ) {
+                    return true;
+                }
+
+                return false;
+            }
+
             function visit(node: ts.Node) {
-                // 1. Check for Property Access: process.env.VAR
+                // 1. プロパティアクセスをチェック: process.env.VAR or import.meta.env.VAR
                 if (ts.isPropertyAccessExpression(node)) {
-                    if (
-                        ts.isPropertyAccessExpression(node.expression) &&
-                        node.expression.expression.getText() === 'process' &&
-                        node.expression.name.getText() === 'env'
-                    ) {
+                    if (isEnvObject(node.expression)) {
                         const envVarName = node.name.getText();
                         vars.add(envVarName);
                     }
                 }
 
-                // 2. Check for Element Access: process.env['VAR']
+                // 2. 要素アクセスをチェック: process.env['VAR'] or import.meta.env['VAR']
                 if (ts.isElementAccessExpression(node)) {
-                    if (
-                        ts.isPropertyAccessExpression(node.expression) &&
-                        node.expression.expression.getText() === 'process' &&
-                        node.expression.name.getText() === 'env'
-                    ) {
+                    if (isEnvObject(node.expression)) {
                         if (ts.isStringLiteral(node.argumentExpression)) {
                             const envVarName = node.argumentExpression.text;
                             vars.add(envVarName);
@@ -61,30 +77,23 @@ export async function scanDirectory(dir: string, options: ScanOptions = {}): Pro
                     }
                 }
 
-                // 3. Check for Destructuring: const { VAR } = process.env
+                // 3. 分割代入をチェック: const { VAR } = process.env or import.meta.env
                 if (ts.isVariableDeclaration(node)) {
-                    if (
-                        node.initializer &&
-                        ts.isPropertyAccessExpression(node.initializer) &&
-                        node.initializer.expression.getText() === 'process' &&
-                        node.initializer.name.getText() === 'env'
-                    ) {
+                    if (node.initializer && isEnvObject(node.initializer)) {
                         if (ts.isObjectBindingPattern(node.name)) {
                             node.name.elements.forEach((element) => {
                                 if (ts.isBindingElement(element)) {
-                                    // Handle renamed vars: const { OLD: NEW } = process.env
+                                    // 名前変更を伴う分割代入に対応: const { OLD: NEW } = process.env
                                     let envVarName: string | undefined;
 
-                                    // element.propertyName is the property on the object (process.env key)
-                                    // element.name is the variable name
+                                    // element.propertyName はオブジェクト側のプロパティ名 (process.env のキー)
+                                    // element.name はコード内での変数名
 
                                     if (element.propertyName && ts.isIdentifier(element.propertyName)) {
                                         envVarName = element.propertyName.text;
                                     } else if (ts.isIdentifier(element.name)) {
                                         envVarName = element.name.text;
                                     }
-
-                                    // Note: If using default values like { VAR = 'default' }, element.name is still the identifier
 
                                     if (envVarName) {
                                         vars.add(envVarName);
