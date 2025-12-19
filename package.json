@@ -1,6 +1,6 @@
 {
   "name": "trace-env",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "main": "./dist/index.js",
   "description": "Trace environment variables used in your project",
   "bin": {
@@ -30,13 +30,13 @@
     "chalk": "^4.1.2",
     "commander": "^13.0.0",
     "dotenv": "^17.2.3",
-    "glob": "^11.0.0"
+    "glob": "^11.0.0",
+    "typescript": "^5.7.0"
   },
   "devDependencies": {
     "@types/glob": "^8.1.0",
     "@types/node": "^25.0.2",
     "oxlint": "^1.34.0",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.7.0"
+    "ts-node": "^10.9.2"
   }
 }
