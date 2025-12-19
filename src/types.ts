@@ -1,5 +1,6 @@
 export interface ScanOptions {
     debug?: boolean;
+    ignore?: string[];
 }
 
 export interface ScanResult {

@@ -14,7 +14,8 @@ export async function scanDirectory(dir: string, options: ScanOptions = {}): Pro
 
     // スキャン対象のファイルパターン（ビルド成果物などは除外）
     const pattern = '**/*.{js,jsx,ts,tsx,mjs,cjs}';
-    const ignore = ['**/node_modules/**', '**/dist/**', '**/build/**', '**/.git/**'];
+    const defaultIgnore = ['**/node_modules/**', '**/dist/**', '**/build/**', '**/.git/**'];
+    const ignore = options.ignore ? [...defaultIgnore, ...options.ignore] : defaultIgnore;
 
     const files = await glob(pattern, { cwd: dir, ignore, absolute: true });
 

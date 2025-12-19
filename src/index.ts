@@ -16,6 +16,9 @@ program
     .version('1.0.0')
     .argument('[path]', 'path to scan', '.')
     .option('-g, --generate', 'Generate .env.example file')
+    .option('-i, --ignore <patterns>', 'Glob patterns to ignore (can be comma-separated or specified multiple times)', (value, previous: string[] = []) => {
+        return previous.concat(value.split(','));
+    })
     .option('--ci', 'Run in CI mode (fails if unused or missing variables are found in .env.example)')
     .option('--debug', 'Enable debug output')
     .action(async (directory, options) => {
@@ -30,7 +33,10 @@ program
                 console.log(chalk.gray(`Scanning directory: ${targetDir}`));
             }
 
-            const envVars = await scanDirectory(targetDir, { debug: options.debug });
+            const envVars = await scanDirectory(targetDir, { 
+                debug: options.debug,
+                ignore: options.ignore 
+            });
 
             // .env ファイルの読み込み（ローカル実行用）
             const envPath = path.join(targetDir, '.env');
