@@ -13,7 +13,7 @@ const program = new Command();
 program
     .name('trace-env')
     .description('Trace environment variables used in your project')
-    .version('1.0.0')
+    .version('0.1.0')
     .argument('[path]', 'path to scan', '.')
     .option('-g, --generate', 'Generate .env.example file')
     .option('-i, --ignore <patterns>', 'Glob patterns to ignore (can be comma-separated or specified multiple times)', (value, previous: string[] = []) => {
