@@ -8,7 +8,10 @@ A CLI tool to trace environment variables used in your project, identify unused 
 
 ```bash
 npm install -g trace-env
+```
 # or run directly with npx
+
+```bash
 npx trace-env .
 ```
 
